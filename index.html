@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minesweeper Pro + Flags</title>
+    <style>
+        :root {
+            --bg: #e0e5ec;
+            --cell-bg: #e0e5ec;
+            --cell-shadow: 6px 6px 12px #b8bec5, -6px -6px 12px #ffffff;
+            --cell-inner: inset 3px 3px 7px #b8bec5, inset -3px -3px 7px #ffffff;
+            --text-color: #31344b;
+        }
+
+        body {
+            background-color: var(--bg);
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            color: var(--text-color);
+        }
+
+        .header h1 { margin: 10px 0; font-size: 1.8rem; }
+
+        .stats-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            padding: 10px 15px;
+            background: var(--bg);
+            border-radius: 10px;
+            box-shadow: var(--cell-shadow);
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(10, 38px);
+            grid-template-rows: repeat(10, 38px);
+            gap: 6px;
+            padding: 15px;
+            background: var(--bg);
+            border-radius: 15px;
+            box-shadow: var(--cell-shadow);
+        }
+
+        .cell {
+            width: 38px;
+            height: 38px;
+            background: var(--cell-bg);
+            border-radius: 8px;
+            box-shadow: var(--cell-shadow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-weight: 800;
+            font-size: 1.1rem;
+            user-select: none;
+            transition: transform 0.1s;
+        }
+
+        .cell:active { transform: scale(0.95); }
+
+        .cell.revealed {
+            box-shadow: var(--cell-inner);
+            cursor: default;
+        }
+
+        .cell.mine { background-color: #ff5e5e; border-radius: 50%; }
+        .cell.flag { color: #d9534f; }
+
+        .controls { margin-top: 25px; }
+        .btn-reset {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 12px;
+            background: var(--bg);
+            box-shadow: var(--cell-shadow);
+            color: var(--text-color);
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-reset:active { box-shadow: var(--cell-inner); }
+
+        /* رنگ اعداد */
+        .n-1 { color: #1e88e5; }
+        .n-2 { color: #388e3c; }
+        .n-3 { color: #e53935; }
+        .n-4 { color: #8e24aa; }
+    </style>
+</head>
+<body>
+
+    <div class="header"><h1>Minesweeper</h1></div>
+
+    <div class="stats-container">
+        <div class="stat-box">💣 مین: <span id="mine-count">12</span></div>
+        <div class="stat-box">⏱ زمان: <span id="timer">0</span></div>
+        <div class="stat-box">🏆 بهترین: <span id="best-score">-</span></div>
+    </div>
+
+    <div id="grid" class="grid" oncontextmenu="return false;"></div>
+
+    <div class="controls">
+        <button class="btn-reset" onclick="initGame()">شروع مجدد</button>
+    </div>
+
+    <p style="font-size: 0.8rem; margin-top: 15px; opacity: 0.7;">راست‌کلیک: گذاشتن پرچم | چپ‌کلیک: باز کردن خانه</p>
+
+    <script>
+        const size = 10;
+        const totalMines = 12;
+        let cells = [];
+        let timerInterval;
+        let seconds = 0;
+        let gameOver = false;
+        let firstClick = true;
+        let minesRemaining = totalMines;
+
+        function initGame() {
+            const gridDisplay = document.getElementById('grid');
+            gridDisplay.innerHTML = '';
+            cells = [];
+            seconds = 0;
+            minesRemaining = totalMines;
+            gameOver = false;
+            firstClick = true;
+            clearInterval(timerInterval);
+            document.getElementById('timer').innerText = '0';
+            document.getElementById('mine-count').innerText = totalMines;
+            updateBestScoreDisplay();
+
+            for (let i = 0; i < size * size; i++) {
+                const cellElement = document.createElement('div');
+                cellElement.classList.add('cell');
+                
+                // چپ کلیک
+                cellElement.addEventListener('click', () => handleLeftClick(i));
+                // راست کلیک
+                cellElement.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    handleRightClick(i);
+                });
+
+                gridDisplay.appendChild(cellElement);
+                cells.push({ 
+                    element: cellElement, 
+                    type: 'empty', 
+                    revealed: false, 
+                    flagged: false 
+                });
+            }
+        }
+
+        function generateMines(safeIndex) {
+            let placed = 0;
+            while (placed < totalMines) {
+                let idx = Math.floor(Math.random() * (size * size));
+                if (idx !== safeIndex && cells[idx].type !== 'mine' && !isNeighbor(safeIndex, idx)) {
+                    cells[idx].type = 'mine';
+                    placed++;
+                }
+            }
+        }
+
+        function isNeighbor(id1, id2) {
+            const x1 = id1 % size, y1 = Math.floor(id1 / size);
+            const x2 = id2 % size, y2 = Math.floor(id2 / size);
+            return Math.abs(x1 - x2) <= 1 && Math.abs(y1 - y2) <= 1;
+        }
+
+        function handleLeftClick(id) {
+            if (gameOver || cells[id].revealed || cells[id].flagged) return;
+
+            if (firstClick) {
+                firstClick = false;
+                generateMines(id);
+                startTimer();
+            }
+
+            if (cells[id].type === 'mine') {
+                endGame(false);
+            } else {
+                revealCell(id);
+                checkWin();
+            }
+        }
+
+        function handleRightClick(id) {
+            if (gameOver || cells[id].revealed) return;
+            if (firstClick) return; // اجازه پرچم زدن قبل از شروع بازی را نده
+
+            const cell = cells[id];
+            if (!cell.flagged && minesRemaining > 0) {
+                cell.flagged = true;
+                cell.element.innerHTML = '🚩';
+                cell.element.classList.add('flag');
+                minesRemaining--;
+            } else if (cell.flagged) {
+                cell.flagged = false;
+                cell.element.innerHTML = '';
+                cell.element.classList.remove('flag');
+                minesRemaining++;
+            }
+            document.getElementById('mine-count').innerText = minesRemaining;
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                seconds++;
+                document.getElementById('timer').innerText = seconds;
+            }, 1000);
+        }
+
+        function revealCell(id) {
+            if (cells[id].revealed || cells[id].flagged) return;
+            
+            cells[id].revealed = true;
+            cells[id].element.classList.add('revealed');
+            
+            const minesNear = countMinesNear(id);
+            if (minesNear > 0) {
+                cells[id].element.innerText = minesNear;
+                cells[id].element.classList.add('n-' + minesNear);
+            } else {
+                getNeighbors(id).forEach(nId => revealCell(nId));
+            }
+        }
+
+        function countMinesNear(id) {
+            return getNeighbors(id).filter(nId => cells[nId].type === 'mine').length;
+        }
+
+        function getNeighbors(id) {
+            const neighbors = [];
+            const x = id % size;
+            const y = Math.floor(id / size);
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    const nx = x + dx, ny = y + dy;
+                    if (nx >= 0 && nx < size && ny >= 0 && ny < size) {
+                        neighbors.push(ny * size + nx);
+                    }
+                }
+            }
+            return neighbors;
+        }
+
+        function checkWin() {
+            const rev = cells.filter(c => c.revealed).length;
+            if (rev === size * size - totalMines) {
+                endGame(true);
+            }
+        }
+
+        function endGame(win) {
+            gameOver = true;
+            clearInterval(timerInterval);
+            cells.forEach(c => {
+                if (c.type === 'mine') {
+                    c.element.innerHTML = '💣';
+                    if (!win) c.element.classList.add('mine');
+                }
+            });
+            if (win) {
+                saveScore(seconds);
+                alert('ایول! بردی. رکوردت: ' + seconds);
+            } else {
+                alert('بوم! باختی.');
+            }
+        }
+
+        function saveScore(s) {
+            const b = localStorage.getItem('mineBestScore');
+            if (!b || s < parseInt(b)) localStorage.setItem('mineBestScore', s);
+            updateBestScoreDisplay();
+        }
+
+        function updateBestScoreDisplay() {
+            const b = localStorage.getItem('mineBestScore');
+            document.getElementById('best-score').innerText = b ? b : '-';
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
