@@ -1,5 +1,5 @@
 {
-  "name": "fast-mesh-d224ea",
+  "name": "cold-edge-df618d",
   "build": {
     "dockerfile": "Dockerfile",
     "context": "."
@@ -15,7 +15,7 @@
   "postAttachCommand": "gh codespace ports visibility 443:public -c $CODESPACE_NAME && bash /usr/local/bin/start.sh",
   "portsAttributes": {
     "443": {
-      "label": "fast-mesh-d224ea",
+      "label": "cold-edge-df618d",
       "protocol": "http",
       "onAutoForward": "silent"
     }
