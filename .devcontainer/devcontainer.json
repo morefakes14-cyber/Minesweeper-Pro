@@ -12,8 +12,8 @@
       "version": "latest"
     }
   },
-  "postStartCommand": "bash ./g2ray.sh --silent-start",
-  "postAttachCommand": "bash ./g2ray.sh",
+  "postStartCommand": "bash ./start.sh --silent-start",
+  "postAttachCommand": "bash ./start.sh",
   "portsAttributes": {
     "443": {
       "label": "g2ray-vless",
